@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>朝読み — オンライン読書会 進行ツール</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1 class="app-title">朝読み</h1>
+    <button id="btn-data" class="ghost-btn" title="データ管理">⚙︎</button>
+  </header>
+
+  <main id="app"></main>
+
+  <!-- データ管理モーダル -->
+  <div id="data-modal" class="modal hidden">
+    <div class="modal-body">
+      <h2>データ管理</h2>
+      <div class="modal-actions">
+        <button id="btn-export" class="primary-btn">JSON エクスポート</button>
+        <label class="primary-btn file-label">
+          JSON インポート
+          <input id="file-import" type="file" accept="application/json" hidden />
+        </label>
+        <button id="btn-edit-participants" class="secondary-btn">参加者を編集</button>
+        <button id="btn-edit-book" class="secondary-btn">本を編集</button>
+      </div>
+      <button id="btn-close-modal" class="ghost-btn close-btn">閉じる</button>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
