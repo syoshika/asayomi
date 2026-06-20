@@ -245,8 +245,8 @@
   // ---- 画面: 感想シェア ----
   function renderShare() {
     clearTimer();
-    // 参加者の順番をランダム化
-    draft.order = shuffle(Store.getParticipants().map((p) => p.id));
+    // 参加者の順番は名前の数字順（自然順）で初期化。「順番を変える」でランダム化できる。
+    draft.order = sortByName(Store.getParticipants()).map((p) => p.id);
     let currentIndex = 0;
     let remaining = SPEAK_SECONDS;
 
@@ -506,6 +506,12 @@
       [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
+  }
+  // 名前を自然順（参加者2 < 参加者10）で並べ替える
+  function sortByName(participants) {
+    return [...participants].sort((a, b) =>
+      a.name.localeCompare(b.name, "ja", { numeric: true })
+    );
   }
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({
