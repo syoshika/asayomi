@@ -78,13 +78,18 @@ const Store = (() => {
   function getSessionsByBook(bookId) {
     return read(KEYS.sessions).filter((s) => s.bookId === bookId);
   }
-  // 指定の本で最後に到達したページ（次回の開始ページ初期値に使う）
+  // 指定の本で「前回読み終えたページ」（次回の開始ページ初期値に使う）。
+  // 全セッションの最大値ではなく、最新セッションの endPage を返す。
+  // （読み返しなどで end を戻しても、その変更が翌日に反映されるようにするため）
   function getLastEndPage(bookId) {
     const sessions = getSessionsByBook(bookId);
     if (sessions.length === 0) return 1;
-    return sessions
-      .map((s) => s.endPage)
-      .reduce((max, p) => Math.max(max, p), 1);
+    // 日付の新しい順、同日なら id（保存時刻を含む）の新しい順に並べ、先頭を採用
+    const latest = sessions.slice().sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return a.id < b.id ? 1 : -1;
+    })[0];
+    return latest.endPage;
   }
   function addSession(session) {
     const sessions = read(KEYS.sessions);
