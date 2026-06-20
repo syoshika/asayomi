@@ -50,14 +50,16 @@
     }
 
     const start = Store.getLastEndPage(book.id);
-    // 既定の終了ページ: 開始 +10p（総ページを超えない）
-    const defaultEnd = Math.min(start + 10, book.totalPages);
+    const pagesPerSession = Store.getPagesPerSession(); // 1 回で読むページ数（前回値）
+    // 既定の終了ページ: 開始 + 1 回で読むページ数（総ページを超えない）
+    const defaultEnd = Math.min(start + pagesPerSession, book.totalPages);
 
     draft = {
       bookId: book.id,
       date: Store.today(),
       startPage: start,
       endPage: defaultEnd,
+      pagesPerSession: pagesPerSession,
       question: "なし",
       reactions: { empathy: 0, insight: 0, discovery: 0 },
       nextSteps: [],
@@ -84,8 +86,22 @@
           <span class="num" id="lbl-end">${defaultEnd}</span>
           <span class="muted">p</span>
         </div>
+
+        <p class="muted" style="margin:10px 0 2px">開始ページ</p>
+        <input type="range" id="start-range" min="1" max="${book.totalPages}" value="${start}" />
+        <div class="center">
+          <button class="chip" id="btn-reset-start">前回の続き（${start}p）に戻す</button>
+        </div>
+
+        <p class="muted center" style="margin:18px 0 6px">1回で読むページ数</p>
+        <div class="stepper">
+          <button id="pages-minus">−</button>
+          <span class="value" id="pages-val">${defaultEnd - start}<span style="font-size:20px">p</span></span>
+          <button id="pages-plus">＋</button>
+        </div>
+
+        <p class="muted" style="margin:18px 0 2px">終了ページ</p>
         <input type="range" id="end-range" min="${start}" max="${book.totalPages}" value="${defaultEnd}" />
-        <p class="muted center" id="lbl-count">${defaultEnd - start} ページ</p>
       </div>
 
       <div class="card">
@@ -98,11 +114,53 @@
       <button class="primary-btn big-btn" id="btn-start">黙読スタート ▶</button>
     `;
 
-    const range = document.getElementById("end-range");
-    range.oninput = () => {
-      draft.endPage = parseInt(range.value, 10);
+    const startRange = document.getElementById("start-range");
+    const endRange = document.getElementById("end-range");
+
+    // draft の値をスライダー・ラベルへ反映する
+    function syncUI() {
+      startRange.value = draft.startPage;
+      endRange.min = draft.startPage;
+      endRange.value = draft.endPage;
+      document.getElementById("lbl-start").textContent = draft.startPage;
       document.getElementById("lbl-end").textContent = draft.endPage;
-      document.getElementById("lbl-count").textContent = (draft.endPage - draft.startPage) + " ページ";
+      // 「1回で読むページ数」は実際の範囲（終了 − 開始）を表示
+      document.getElementById("pages-val").innerHTML =
+        Math.max(0, draft.endPage - draft.startPage) + '<span style="font-size:20px">p</span>';
+    }
+
+    // 開始ページ変更 → 終了ページ＝開始＋1回で読むページ数（総ページ上限）
+    startRange.oninput = () => {
+      draft.startPage = parseInt(startRange.value, 10);
+      draft.endPage = Math.min(draft.startPage + draft.pagesPerSession, book.totalPages);
+      syncUI();
+    };
+
+    // 終了ページ変更 → 1回で読むページ数を連動更新
+    endRange.oninput = () => {
+      draft.endPage = parseInt(endRange.value, 10);
+      draft.pagesPerSession = Math.max(1, draft.endPage - draft.startPage);
+      syncUI();
+    };
+
+    // 「1回で読むページ数」を増減 → 終了ページ＝開始＋ページ数
+    document.getElementById("pages-plus").onclick = () => {
+      draft.pagesPerSession++;
+      draft.endPage = Math.min(draft.startPage + draft.pagesPerSession, book.totalPages);
+      syncUI();
+    };
+    document.getElementById("pages-minus").onclick = () => {
+      if (draft.pagesPerSession <= 1) return;
+      draft.pagesPerSession--;
+      draft.endPage = Math.min(draft.startPage + draft.pagesPerSession, book.totalPages);
+      syncUI();
+    };
+
+    // 「前回の続き」に戻す（開始を前回末へ、終了はページ数に追従）
+    document.getElementById("btn-reset-start").onclick = () => {
+      draft.startPage = start;
+      draft.endPage = Math.min(start + draft.pagesPerSession, book.totalPages);
+      syncUI();
     };
 
     document.querySelectorAll("#question-chips .chip").forEach((chip) => {
@@ -344,6 +402,8 @@
 
     document.getElementById("save").onclick = () => {
       draft.nextSteps = Object.entries(stepCounts).map(([step, count]) => ({ step, count }));
+      // 今回の「1回で読むページ数」を次回の既定値として記憶
+      Store.setPagesPerSession(draft.pagesPerSession);
       Store.addSession({ id: "session_" + draft.date + "_" + Date.now(), ...draft, participants: draft.order });
       alert("保存しました。お疲れさまでした！");
       renderHome();

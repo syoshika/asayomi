@@ -7,7 +7,10 @@ const Store = (() => {
     books: "asayomi.books",
     sessions: "asayomi.sessions",
     participants: "asayomi.participants",
+    settings: "asayomi.settings",
   };
+
+  const DEFAULT_PAGES_PER_SESSION = 10; // 1 回で読むページ数の既定値
 
   // 内部ユーティリティ
   function read(key) {
@@ -103,6 +106,25 @@ const Store = (() => {
     return streak;
   }
 
+  // --- 設定 ---
+  function getSettings() {
+    try {
+      return JSON.parse(localStorage.getItem(KEYS.settings)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
+  // 1 回で読むページ数（前回の値を覚える）
+  function getPagesPerSession() {
+    const s = getSettings();
+    return s.pagesPerSession || DEFAULT_PAGES_PER_SESSION;
+  }
+  function setPagesPerSession(n) {
+    const s = getSettings();
+    s.pagesPerSession = n;
+    write(KEYS.settings, s);
+  }
+
   // --- エクスポート / インポート ---
   function exportAll() {
     return {
@@ -110,12 +132,14 @@ const Store = (() => {
       books: read(KEYS.books),
       sessions: read(KEYS.sessions),
       participants: read(KEYS.participants),
+      settings: getSettings(),
     };
   }
   function importAll(data) {
     if (data.books) write(KEYS.books, data.books);
     if (data.sessions) write(KEYS.sessions, data.sessions);
     if (data.participants) write(KEYS.participants, data.participants);
+    if (data.settings) write(KEYS.settings, data.settings);
   }
 
   seedIfEmpty();
@@ -125,6 +149,7 @@ const Store = (() => {
     getBooks, getCurrentBook, saveBook,
     getParticipants, saveParticipants,
     getSessions, getSessionsByBook, getLastEndPage, addSession, getStreak,
+    getPagesPerSession, setPagesPerSession,
     exportAll, importAll,
   };
 })();
