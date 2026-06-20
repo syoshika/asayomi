@@ -259,7 +259,7 @@
         const p = participantById(id);
         const cls = i === currentIndex ? "current" : (i < currentIndex ? "done" : "");
         const mark = i < currentIndex ? "✓" : (i === currentIndex ? "🎙" : (i + 1));
-        return `<li class="${cls}"><span class="av">${p.icon}</span>${escapeHtml(p.name)}
+        return `<li class="${cls}" data-i="${i}"><span class="av">${p.icon}</span>${escapeHtml(p.name)}
           <span class="muted" style="margin-left:auto">${mark}</span></li>`;
       }).join("");
     }
@@ -296,6 +296,11 @@
       startSpeakerTimer();
 
       document.getElementById("next").onclick = nextSpeaker;
+      // リストの人をクリックして話者を選ぶ
+      document.getElementById("list").onclick = (e) => {
+        const li = e.target.closest("li[data-i]");
+        if (li) selectSpeaker(parseInt(li.dataset.i, 10));
+      };
       document.getElementById("reshuffle").onclick = () => {
         draft.order = shuffle(draft.order);
         currentIndex = 0;
@@ -329,6 +334,16 @@
         }
         if (remaining <= 0) clearTimer();
       }, 1000);
+    }
+
+    // クリックで指定の人を話者にする
+    function selectSpeaker(i) {
+      if (i < 0 || i >= draft.order.length) return;
+      currentIndex = i;
+      remaining = SPEAK_SECONDS;
+      document.getElementById("list").innerHTML = drawList();
+      updateName();
+      startSpeakerTimer();
     }
 
     function nextSpeaker() {
