@@ -497,7 +497,9 @@
         <p class="section-label">本ごとの軌跡</p>
         ${books.map((b) => {
           const st = Store.getBookStats(b.id);
-          const badge = b.status === "finished" ? `<span class="badge done">読了 🎉</span>` : `<span class="badge">読書中</span>`;
+          const badge = b.status === "finished" ? `<span class="badge done">読了 🎉</span>`
+            : b.status === "paused" ? `<span class="badge paused">中断</span>`
+            : `<span class="badge">読書中</span>`;
           return `
             <div class="book-track">
               <div class="row-between">
@@ -647,6 +649,8 @@
         book.title = title; book.author = author; book.totalPages = total;
         Store.saveBook(book);
       } else {
+        // 新しい本を登録 → 読書中だった本は自動で「中断」にし、現在の本を1冊に保つ
+        Store.pauseReadingBooks();
         Store.saveBook({ id: "book_" + Date.now(), title, author, totalPages: total, status: "reading", startedAt: Store.today(), finishedAt: null });
       }
       modal.classList.add("hidden");
