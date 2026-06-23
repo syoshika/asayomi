@@ -64,6 +64,7 @@
       reactions: { empathy: 0, insight: 0, discovery: 0 },
       nextSteps: [],
       order: [],
+      memo: "",
       durationMin: DEFAULT_READ_MINUTES,
     };
 
@@ -290,10 +291,18 @@
           </div>
         </div>
 
+        <div class="card">
+          <p class="section-label">ひとことメモ（任意）</p>
+          <textarea id="memo" class="memo-input" rows="3" placeholder="今日の読書会のメモ（あとで履歴から振り返れます）">${escapeHtml(draft.memo)}</textarea>
+        </div>
+
         <button class="primary-btn big-btn" id="to-summary">読書会をまとめる ▶</button>
       `;
       updateName();
       startSpeakerTimer();
+
+      // メモは入力のたび draft に反映（「順番を変える」で再描画しても消えない）
+      document.getElementById("memo").oninput = (e) => { draft.memo = e.target.value; };
 
       document.getElementById("next").onclick = nextSpeaker;
       // リストの人をクリックして話者を選ぶ
@@ -314,7 +323,12 @@
           document.getElementById("cnt-" + k).textContent = draft.reactions[k];
         };
       });
-      document.getElementById("to-summary").onclick = () => { clearTimer(); renderSummary(); };
+      document.getElementById("to-summary").onclick = () => {
+        const memoEl = document.getElementById("memo");
+        if (memoEl) draft.memo = memoEl.value; // 確定時点の値を保存
+        clearTimer();
+        renderSummary();
+      };
     }
 
     function updateName() {
@@ -517,6 +531,7 @@
                   <div class="session-main">
                     <div class="session-book">${book ? escapeHtml(book.title) : "（不明な本）"}</div>
                     <div class="muted">${s.startPage}→${s.endPage}p（${Math.max(0, s.endPage - s.startPage)}p）${s.question && s.question !== "なし" ? "・" + escapeHtml(s.question) : ""}</div>
+                    ${s.memo ? `<div class="session-memo">📝 ${escapeHtml(s.memo)}</div>` : ""}
                   </div>
                   <div class="session-react muted">${rTotal > 0 ? "💛" + (r.empathy || 0) + " 💡" + (r.insight || 0) + " ✨" + (r.discovery || 0) : "—"}</div>
                 </li>`;
