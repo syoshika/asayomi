@@ -68,6 +68,16 @@ const Store = (() => {
     if (idx >= 0) books[idx] = book; else books.push(book);
     write(KEYS.books, books);
   }
+  // 新しい本に切り替えるとき、読書中だった本を「中断(paused)」にする。
+  // （読了 finished とは区別する。履歴は残り、現在の本は新しい1冊だけになる）
+  function pauseReadingBooks() {
+    const books = read(KEYS.books);
+    let changed = false;
+    books.forEach((b) => {
+      if (b.status === "reading") { b.status = "paused"; changed = true; }
+    });
+    if (changed) write(KEYS.books, books);
+  }
 
   // --- 参加者 ---
   function getParticipants() { return read(KEYS.participants); }
@@ -164,6 +174,7 @@ const Store = (() => {
     today,
     getBooks, getCurrentBook, saveBook,
     getParticipants, saveParticipants,
+    pauseReadingBooks,
     getSessions, getSessionsByBook, getLastEndPage, addSession, getStreak, getBookStats,
     getPagesPerSession, setPagesPerSession,
     exportAll, importAll,
