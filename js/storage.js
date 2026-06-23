@@ -97,6 +97,17 @@ const Store = (() => {
     write(KEYS.sessions, sessions);
   }
 
+  // 履歴用の集計。本ごとの軌跡（開催回数・累計ページ・到達ページ）を返す。
+  function getBookStats(bookId) {
+    const sessions = getSessionsByBook(bookId);
+    const reached = sessions.length ? getLastEndPage(bookId) : 1;
+    const totalRead = sessions.reduce(
+      (sum, s) => sum + Math.max(0, s.endPage - s.startPage),
+      0
+    );
+    return { count: sessions.length, reached, totalRead };
+  }
+
   // 連続開催日数（ストリーク）。最新の開催日から遡って連続している日数を数える。
   function getStreak() {
     const dates = [...new Set(read(KEYS.sessions).map((s) => s.date))].sort().reverse();
@@ -153,7 +164,7 @@ const Store = (() => {
     today,
     getBooks, getCurrentBook, saveBook,
     getParticipants, saveParticipants,
-    getSessions, getSessionsByBook, getLastEndPage, addSession, getStreak,
+    getSessions, getSessionsByBook, getLastEndPage, addSession, getStreak, getBookStats,
     getPagesPerSession, setPagesPerSession,
     exportAll, importAll,
   };
