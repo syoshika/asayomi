@@ -316,6 +316,30 @@ input[type="range"] {
 .session-main { flex: 1; min-width: 0; }
 .session-book { font-weight: 700; font-size: 16px; }
 .session-react { white-space: nowrap; font-size: 14px; }
+.session-memo {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ひとことメモ入力（感想シェア） */
+.memo-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  resize: vertical;
+  background: var(--bg);
+}
+.memo-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 .center { text-align: center; }
 .muted { color: var(--muted); }
