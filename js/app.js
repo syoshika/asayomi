@@ -441,6 +441,140 @@
     return Store.getSessions().some((s) => s.date === Store.today());
   }
 
+  // ---- 画面: 履歴 ----
+  function renderHistory() {
+    clearTimer();
+    const sessions = Store.getSessions();
+    const books = Store.getBooks();
+
+    if (sessions.length === 0) {
+      app.innerHTML = `
+        <div class="card center">
+          <p class="section-label">これまでの記録</p>
+          <p class="muted" style="font-size:18px;margin:8px 0 20px">まだ記録がありません。<br>読書会を1回ひらくとここに残ります。</p>
+          <button class="primary-btn" id="back-home">← ホームに戻る</button>
+        </div>`;
+      document.getElementById("back-home").onclick = renderHome;
+      return;
+    }
+
+    // 全体の集計
+    const heldDays = new Set(sessions.map((s) => s.date)).size;
+    const totalPages = sessions.reduce((sum, s) => sum + Math.max(0, s.endPage - s.startPage), 0);
+    const finishedBooks = books.filter((b) => b.status === "finished").length;
+
+    app.innerHTML = `
+      <div class="card row-between" style="padding:18px 28px">
+        <p class="section-label" style="margin:0">これまでの記録</p>
+        <button class="ghost-btn" id="back-home">← ホームに戻る</button>
+      </div>
+
+      <div class="card">
+        <p class="section-label">全体</p>
+        <div class="stat-row">
+          <div class="stat"><div class="n">${heldDays}</div><div class="l">開催日数</div></div>
+          <div class="stat"><div class="n">${totalPages}</div><div class="l">累計ページ</div></div>
+          <div class="stat"><div class="n">${Store.getStreak()}</div><div class="l">連続開催日</div></div>
+          <div class="stat"><div class="n">${finishedBooks}</div><div class="l">読了した本</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="section-label">本ごとの軌跡</p>
+        ${books.map((b) => {
+          const st = Store.getBookStats(b.id);
+          const badge = b.status === "finished" ? `<span class="badge done">読了 🎉</span>` : `<span class="badge">読書中</span>`;
+          return `
+            <div class="book-track">
+              <div class="row-between">
+                <span class="book-track-title">${escapeHtml(b.title)} ${badge}</span>
+                <span class="muted">${st.count}回・累計${st.totalRead}p</span>
+              </div>
+              <div class="progress" style="margin-top:8px">
+                <span style="width:${pct(st.reached, b.totalPages)}%"></span>
+              </div>
+              <p class="muted" style="margin:4px 0 0;font-size:13px">${st.reached} / ${b.totalPages}p（${pct(st.reached, b.totalPages)}%）</p>
+            </div>`;
+        }).join("")}
+      </div>
+
+      <div class="card">
+        <p class="section-label">カレンダー</p>
+        <div id="calendar"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-label">セッション履歴</p>
+        <ul class="session-list">
+          ${[...sessions].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (a.id < b.id ? 1 : -1)))
+            .map((s) => {
+              const book = books.find((b) => b.id === s.bookId);
+              const r = s.reactions || {};
+              const rTotal = (r.empathy || 0) + (r.insight || 0) + (r.discovery || 0);
+              return `
+                <li class="session-row">
+                  <div class="session-date">${fmtDateLabel(s.date)}</div>
+                  <div class="session-main">
+                    <div class="session-book">${book ? escapeHtml(book.title) : "（不明な本）"}</div>
+                    <div class="muted">${s.startPage}→${s.endPage}p（${Math.max(0, s.endPage - s.startPage)}p）${s.question && s.question !== "なし" ? "・" + escapeHtml(s.question) : ""}</div>
+                  </div>
+                  <div class="session-react muted">${rTotal > 0 ? "💛" + (r.empathy || 0) + " 💡" + (r.insight || 0) + " ✨" + (r.discovery || 0) : "—"}</div>
+                </li>`;
+            }).join("")}
+        </ul>
+      </div>
+    `;
+
+    document.getElementById("back-home").onclick = renderHome;
+    renderCalendar(new Date());
+  }
+
+  // 履歴カレンダー（月送り）。開催日をハイライトし、ページ数をセルに表示する。
+  function renderCalendar(monthDate) {
+    const wrap = document.getElementById("calendar");
+    if (!wrap) return;
+
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth(); // 0-11
+
+    // その月の開催日 → 読んだページ数 のマップ
+    const pagesByDate = {};
+    Store.getSessions().forEach((s) => {
+      pagesByDate[s.date] = (pagesByDate[s.date] || 0) + Math.max(0, s.endPage - s.startPage);
+    });
+
+    const firstWeekday = new Date(year, month, 1).getDay(); // 0=日
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayStr = Store.today();
+
+    const weekHead = ["日", "月", "火", "水", "木", "金", "土"]
+      .map((d) => `<div class="cal-head">${d}</div>`).join("");
+
+    let cells = "";
+    for (let i = 0; i < firstWeekday; i++) cells += `<div class="cal-cell empty"></div>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const held = ds in pagesByDate;
+      const isToday = ds === todayStr;
+      cells += `<div class="cal-cell${held ? " held" : ""}${isToday ? " today" : ""}">
+        <span class="cal-day">${d}</span>
+        ${held ? `<span class="cal-pages">${pagesByDate[ds]}p</span>` : ""}
+      </div>`;
+    }
+
+    wrap.innerHTML = `
+      <div class="cal-nav row-between">
+        <button class="ghost-btn" id="cal-prev">←</button>
+        <span class="cal-month">${year}年 ${month + 1}月</span>
+        <button class="ghost-btn" id="cal-next">→</button>
+      </div>
+      <div class="cal-grid">${weekHead}${cells}</div>
+    `;
+
+    document.getElementById("cal-prev").onclick = () => renderCalendar(new Date(year, month - 1, 1));
+    document.getElementById("cal-next").onclick = () => renderCalendar(new Date(year, month + 1, 1));
+  }
+
   // ---- データ管理（モーダル） ----
   function setupDataModal() {
     const modal = document.getElementById("data-modal");
@@ -514,6 +648,12 @@
     return `${m}:${String(r).padStart(2, "0")}`;
   }
   function pct(a, b) { return b > 0 ? Math.round((a / b) * 100) : 0; }
+  // "2026-06-20" → "6/20 (土)"
+  function fmtDateLabel(ds) {
+    const d = new Date(ds + "T00:00:00");
+    const wd = ["日", "月", "火", "水", "木", "金", "土"][d.getDay()];
+    return `${d.getMonth() + 1}/${d.getDate()} (${wd})`;
+  }
   function shuffle(arr) {
     const a = [...arr];
     for (let i = a.length - 1; i > 0; i--) {
@@ -536,5 +676,6 @@
 
   // 起動
   setupDataModal();
+  document.getElementById("btn-history").onclick = renderHistory;
   renderHome();
 })();
