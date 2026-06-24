@@ -2,7 +2,7 @@
 
 「朝読み（asayomi）」は、毎朝オンライン（oviceなど）で実施する読書会の進行をスムーズにし、読書の継続と参加者の相互理解を支援するためのWebアプリケーションです。
 
-公開URL: **[https://asayomi.pages.dev](https://asayomi.pages.dev)**
+公開URL: **[https://asayomi.yoshisato.net](https://asayomi.yoshisato.net)**
 *(データはすべて各自のブラウザ内にのみ保存されます。サーバーには送信されません)*
 
 ---
