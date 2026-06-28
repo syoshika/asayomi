@@ -76,7 +76,7 @@
         <div class="progress" style="margin-top:14px">
           <span style="width:${pct(start, book.totalPages)}%"></span>
         </div>
-        <p class="muted center" style="margin-top:6px">${start} / ${book.totalPages}p まで到達</p>
+        <p class="muted center" style="margin-top:6px">${start} / ${book.totalPages}p（${pct(start, book.totalPages)}%）まで到達</p>
       </div>
 
       <div class="card">
