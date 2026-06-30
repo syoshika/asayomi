@@ -118,16 +118,34 @@ const Store = (() => {
     return { count: sessions.length, reached, totalRead };
   }
 
-  // 連続開催日数（ストリーク）。最新の開催日から遡って連続している日数を数える。
-  function getStreak() {
-    const dates = [...new Set(read(KEYS.sessions).map((s) => s.date))].sort().reverse();
+  // "YYYY-MM-DD" をローカル日付として Date に変換（タイムゾーンずれ防止）
+  function parseLocalDate(ds) { return new Date(ds + "T00:00:00"); }
+  function toYMD(d) {
+    return d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0");
+  }
+  // 指定日の「ひとつ前の開催対象日」。お休みの曜日(restDays)はスキップする。
+  function prevOpenDay(ds, restDays) {
+    const d = parseLocalDate(ds);
+    do { d.setDate(d.getDate() - 1); } while (restDays.includes(d.getDay()));
+    return toYMD(d);
+  }
+
+  // 連続開催日数（ストリーク）。最新の開催日から遡って連続している「開催日」を数える。
+  // お休みの曜日（土日など）は間に挟まっても連続を途切れさせない。
+  // extraDate を渡すと、その日も開催済みとみなして数える（保存前の当日見込み用）。
+  function getStreak(extraDate) {
+    const restDays = getRestDays();
+    const set = new Set(read(KEYS.sessions).map((s) => s.date));
+    if (extraDate) set.add(extraDate);
+    const dates = [...set].sort().reverse();
     if (dates.length === 0) return 0;
     let streak = 1;
     for (let i = 0; i < dates.length - 1; i++) {
-      const cur = new Date(dates[i]);
-      const next = new Date(dates[i + 1]);
-      const diffDays = Math.round((cur - next) / 86400000);
-      if (diffDays === 1) streak++; else break;
+      // dates[i] の直前の開催対象日が dates[i+1] と一致すれば連続（お休み曜日は飛ばす）
+      if (prevOpenDay(dates[i], restDays) === dates[i + 1]) streak++;
+      else break;
     }
     return streak;
   }
@@ -148,6 +166,16 @@ const Store = (() => {
   function setPagesPerSession(n) {
     const s = getSettings();
     s.pagesPerSession = n;
+    write(KEYS.settings, s);
+  }
+  // 読書会お休みの曜日（0=日 … 6=土）。連続開催のカウント対象外。既定は土日。
+  function getRestDays() {
+    const s = getSettings();
+    return Array.isArray(s.restDays) ? s.restDays : [0, 6];
+  }
+  function setRestDays(arr) {
+    const s = getSettings();
+    s.restDays = arr;
     write(KEYS.settings, s);
   }
 
@@ -177,6 +205,7 @@ const Store = (() => {
     pauseReadingBooks,
     getSessions, getSessionsByBook, getLastEndPage, addSession, getStreak, getBookStats,
     getPagesPerSession, setPagesPerSession,
+    getRestDays, setRestDays,
     exportAll, importAll,
   };
 })();

@@ -381,7 +381,8 @@
     clearTimer();
     const book = Store.getCurrentBook();
     const pagesRead = draft.endPage - draft.startPage;
-    const streakAfter = Store.getStreak() + (isTodaySaved() ? 0 : 1);
+    // 今日のセッションも開催済みとみなした連続日数（お休み曜日を考慮）
+    const streakAfter = Store.getStreak(draft.date);
 
     app.innerHTML = `
       <div class="card">
@@ -448,11 +449,6 @@
         renderHome();
       };
     }
-  }
-
-  // 今日のセッションが既に保存済みか（ストリーク二重カウント防止）
-  function isTodaySaved() {
-    return Store.getSessions().some((s) => s.date === Store.today());
   }
 
   // ---- 画面: 履歴 ----
@@ -563,9 +559,10 @@
     const firstWeekday = new Date(year, month, 1).getDay(); // 0=日
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const todayStr = Store.today();
+    const restDays = Store.getRestDays(); // お休みの曜日（グレー表示）
 
     const weekHead = ["日", "月", "火", "水", "木", "金", "土"]
-      .map((d) => `<div class="cal-head">${d}</div>`).join("");
+      .map((d, i) => `<div class="cal-head${restDays.includes(i) ? " rest" : ""}">${d}</div>`).join("");
 
     let cells = "";
     for (let i = 0; i < firstWeekday; i++) cells += `<div class="cal-cell empty"></div>`;
@@ -573,7 +570,8 @@
       const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const held = ds in pagesByDate;
       const isToday = ds === todayStr;
-      cells += `<div class="cal-cell${held ? " held" : ""}${isToday ? " today" : ""}">
+      const isRest = restDays.includes(new Date(year, month, d).getDay());
+      cells += `<div class="cal-cell${isRest ? " rest" : ""}${held ? " held" : ""}${isToday ? " today" : ""}">
         <span class="cal-day">${d}</span>
         ${held ? `<span class="cal-pages">${pagesByDate[ds]}p</span>` : ""}
       </div>`;
@@ -595,8 +593,31 @@
   // ---- データ管理（モーダル） ----
   function setupDataModal() {
     const modal = document.getElementById("data-modal");
-    document.getElementById("btn-data").onclick = () => modal.classList.remove("hidden");
+    document.getElementById("btn-data").onclick = () => {
+      renderRestDays(); // 開くたびに保存済みのお休み設定を反映
+      modal.classList.remove("hidden");
+    };
     document.getElementById("btn-close-modal").onclick = () => modal.classList.add("hidden");
+
+    // 読書会お休みの曜日チェックボックス（タップで即保存）
+    function renderRestDays() {
+      const wrap = document.getElementById("weekday-checks");
+      const labels = ["日", "月", "火", "水", "木", "金", "土"];
+      const rest = Store.getRestDays();
+      wrap.innerHTML = labels.map((l, i) =>
+        `<label class="wd-check${rest.includes(i) ? " on" : ""}">
+          <input type="checkbox" data-day="${i}" ${rest.includes(i) ? "checked" : ""} />
+          <span>${l}</span>
+        </label>`).join("");
+      wrap.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+        cb.onchange = () => {
+          const days = [...wrap.querySelectorAll("input:checked")]
+            .map((c) => parseInt(c.dataset.day, 10));
+          Store.setRestDays(days);
+          cb.closest(".wd-check").classList.toggle("on", cb.checked);
+        };
+      });
+    }
 
     document.getElementById("btn-export").onclick = () => {
       const blob = new Blob([JSON.stringify(Store.exportAll(), null, 2)], { type: "application/json" });
