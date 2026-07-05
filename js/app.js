@@ -41,6 +41,7 @@
   // ---- 画面: ホーム / 準備 ----
   function renderHome() {
     clearTimer();
+    Store.clearWorkingDraft(); // ホーム＝開始前。進行中の退避データはここで破棄
     const book = Store.getCurrentBook();
     if (!book) {
       app.innerHTML = `<div class="card center"><p>本が登録されていません。</p>
@@ -71,7 +72,7 @@
     app.innerHTML = `
       <div class="card">
         <p class="section-label">今読んでいる本</p>
-        <p class="book-title">${escapeHtml(book.title)}</p>
+        <p class="book-title">${escapeHtml(book.title)}${Store.getSoloMode() ? ' <span class="badge">ひとりモード</span>' : ""}</p>
         <p class="book-meta">${escapeHtml(book.author)} ／ 全 ${book.totalPages}p</p>
         <div class="progress" style="margin-top:14px">
           <span style="width:${pct(start, book.totalPages)}%"></span>
@@ -178,8 +179,14 @@
   // ---- 画面: 黙読タイマー ----
   function renderTimer() {
     clearTimer();
+    draft.phase = "reading";
+    Store.saveWorkingDraft(draft); // 途中でタブを閉じても復帰できるよう退避
+    const solo = Store.getSoloMode();
     let remaining = draft.durationMin * 60;
     let running = false;
+
+    // 黙読後の遷移先（ひとりモードは感想シェアを飛ばして直接まとめへ）
+    const goNext = () => { clearTimer(); if (solo) renderSummary(); else renderShare(); };
 
     app.innerHTML = `
       <div class="card center">
@@ -193,7 +200,7 @@
         </div>
         <div class="timer-controls">
           <button class="primary-btn" id="toggle">スタート</button>
-          <button class="secondary-btn" id="skip">感想へ ▶</button>
+          <button class="secondary-btn" id="skip">${solo ? "まとめる ▶" : "感想へ ▶"}</button>
         </div>
       </div>
     `;
@@ -232,15 +239,12 @@
         timer = setInterval(() => {
           remaining--;
           updateClock();
-          if (remaining <= 0) {
-            clearTimer();
-            renderShare();
-          }
+          if (remaining <= 0) goNext();
         }, 1000);
       }
     };
 
-    document.getElementById("skip").onclick = () => { clearTimer(); renderShare(); };
+    document.getElementById("skip").onclick = goNext;
   }
 
   // ---- 画面: 感想シェア ----
@@ -266,6 +270,8 @@
     }
 
     function render() {
+      draft.phase = "sharing";
+      Store.saveWorkingDraft(draft); // 感想シェア中もこまめに退避
       app.innerHTML = `
         <div class="card center">
           <p class="section-label">感想シェア</p>
@@ -302,7 +308,7 @@
       startSpeakerTimer();
 
       // メモは入力のたび draft に反映（「順番を変える」で再描画しても消えない）
-      document.getElementById("memo").oninput = (e) => { draft.memo = e.target.value; };
+      document.getElementById("memo").oninput = (e) => { draft.memo = e.target.value; Store.saveWorkingDraft(draft); };
 
       document.getElementById("next").onclick = nextSpeaker;
       // リストの人をクリックして話者を選ぶ
@@ -321,6 +327,7 @@
           const k = btn.dataset.k;
           draft.reactions[k]++;
           document.getElementById("cnt-" + k).textContent = draft.reactions[k];
+          Store.saveWorkingDraft(draft);
         };
       });
       document.getElementById("to-summary").onclick = () => {
@@ -376,21 +383,45 @@
     render();
   }
 
+  // draft を1件のセッションとして localStorage に確定記録（同一idは上書き）
+  function recordSession() {
+    Store.upsertSession({
+      id: draft.sessionId,
+      bookId: draft.bookId,
+      date: draft.date,
+      startPage: draft.startPage,
+      endPage: draft.endPage,
+      question: draft.question,
+      reactions: draft.reactions,
+      nextSteps: draft.nextSteps,
+      memo: draft.memo,
+      durationMin: draft.durationMin,
+      participants: draft.order,
+    });
+  }
+
   // ---- 画面: サマリー / クロージング ----
   function renderSummary() {
     clearTimer();
     const book = Store.getCurrentBook();
+    const solo = Store.getSoloMode();
     const pagesRead = draft.endPage - draft.startPage;
-    // 今日のセッションも開催済みとみなした連続日数（お休み曜日を考慮）
-    const streakAfter = Store.getStreak(draft.date);
+
+    // ★この画面を開いた時点で自動保存（保存ボタンの押し忘れをなくす）
+    if (!draft.sessionId) draft.sessionId = "session_" + draft.date + "_" + Date.now();
+    Store.setPagesPerSession(draft.pagesPerSession);
+    recordSession();
+    Store.clearWorkingDraft(); // 確定記録したので進行中データは破棄
+
+    const streakAfter = Store.getStreak(); // 記録済みなので今日ぶんも含まれる
 
     app.innerHTML = `
       <div class="card">
-        <p class="section-label">今日のまとめ</p>
+        <p class="section-label">今日のまとめ <span class="saved-badge">保存済み ✓</span></p>
         <div class="stat-row">
           <div class="stat"><div class="n">${pagesRead}</div><div class="l">読んだページ</div></div>
           <div class="stat"><div class="n">${pct(draft.endPage, book.totalPages)}%</div><div class="l">本の到達率</div></div>
-          <div class="stat"><div class="n">${streakAfter}</div><div class="l">連続開催日</div></div>
+          <div class="stat"><div class="n">${streakAfter}</div><div class="l">連続${solo ? "読書" : "開催"}日</div></div>
         </div>
         <div class="progress" style="margin-top:18px">
           <span style="width:${pct(draft.endPage, book.totalPages)}%"></span>
@@ -398,46 +429,51 @@
         <p class="muted center" style="margin-top:6px">${draft.endPage} / ${book.totalPages}p</p>
       </div>
 
+      ${solo ? `
+      <div class="card">
+        <p class="section-label">ひとことメモ（任意）</p>
+        <textarea id="memo" class="memo-input" rows="3" placeholder="今日読んだ感想メモ（あとで履歴から振り返れます）">${escapeHtml(draft.memo)}</textarea>
+      </div>` : `
       <div class="card center">
         <p class="section-label">今日のリアクション合計</p>
         <div class="reactions">
           ${REACTIONS.map((r) => `<div class="reaction-btn"><span class="emoji">${r.emoji}</span>${r.label}
             <span class="count">${draft.reactions[r.key]}</span></div>`).join("")}
         </div>
-      </div>
+      </div>`}
 
       <div class="card">
-        <p class="section-label">明日の一歩（みんなで選ぶ）</p>
+        <p class="section-label">明日の一歩${solo ? "" : "（みんなで選ぶ）"}</p>
         <div class="chips" id="step-chips">
           ${NEXT_STEPS.map((s) => `<button class="chip" data-k="${s.key}">${s.emoji} ${s.label}</button>`).join("")}
         </div>
-        <p class="muted" style="margin-top:8px">タップした回数を記録します</p>
+        <p class="muted" style="margin-top:8px">タップすると記録されます</p>
       </div>
 
-      <button class="primary-btn big-btn" id="save">保存して終了 ✓</button>
+      <button class="primary-btn big-btn" id="save">ホームに戻る ✓</button>
       ${book.status === "reading" && draft.endPage >= book.totalPages
         ? `<button class="secondary-btn big-btn" id="finish-book" style="margin-top:12px">この本を読了にする 🎉</button>` : ""}
     `;
 
-    // 「明日の一歩」はタップ回数を nextSteps に積む（フェーズ1は集計値として保持）
+    // ひとりモードのメモは入力のたび記録を更新（自動保存）
+    const memoEl = document.getElementById("memo");
+    if (memoEl) memoEl.oninput = (e) => { draft.memo = e.target.value; recordSession(); };
+
+    // 「明日の一歩」はタップ回数を nextSteps に積み、その都度 記録を更新
     const stepCounts = {};
+    (draft.nextSteps || []).forEach((ns) => { stepCounts[ns.step] = ns.count; });
     document.querySelectorAll("#step-chips .chip").forEach((chip) => {
       chip.onclick = () => {
         const k = chip.dataset.k;
         stepCounts[k] = (stepCounts[k] || 0) + 1;
         chip.classList.add("selected");
         chip.textContent = chip.textContent.replace(/ ×\d+$/, "") + ` ×${stepCounts[k]}`;
+        draft.nextSteps = Object.entries(stepCounts).map(([step, count]) => ({ step, count }));
+        recordSession();
       };
     });
 
-    document.getElementById("save").onclick = () => {
-      draft.nextSteps = Object.entries(stepCounts).map(([step, count]) => ({ step, count }));
-      // 今回の「1回で読むページ数」を次回の既定値として記憶
-      Store.setPagesPerSession(draft.pagesPerSession);
-      Store.addSession({ id: "session_" + draft.date + "_" + Date.now(), ...draft, participants: draft.order });
-      alert("保存しました。お疲れさまでした！");
-      renderHome();
-    };
+    document.getElementById("save").onclick = renderHome;
 
     const finishBtn = document.getElementById("finish-book");
     if (finishBtn) {
@@ -593,11 +629,16 @@
   // ---- データ管理（モーダル） ----
   function setupDataModal() {
     const modal = document.getElementById("data-modal");
+    const soloToggle = document.getElementById("solo-toggle");
     document.getElementById("btn-data").onclick = () => {
-      renderRestDays(); // 開くたびに保存済みのお休み設定を反映
+      renderRestDays();                        // 開くたびに保存済みのお休み設定を反映
+      soloToggle.checked = Store.getSoloMode(); // ひとりモードの状態を反映
       modal.classList.remove("hidden");
     };
     document.getElementById("btn-close-modal").onclick = () => modal.classList.add("hidden");
+
+    // ひとりモードの切替（次回の読書会から反映）
+    soloToggle.onchange = () => Store.setSoloMode(soloToggle.checked);
 
     // 読書会お休みの曜日チェックボックス（タップで即保存）
     function renderRestDays() {
@@ -714,8 +755,29 @@
     }[c]));
   }
 
+  // ---- 画面: 前回の続きから再開 ----
+  function renderResumePrompt(wd) {
+    clearTimer();
+    const book = Store.getBooks().find((b) => b.id === wd.bookId) || Store.getCurrentBook();
+    app.innerHTML = `
+      <div class="card center">
+        <p class="section-label">前回の続き</p>
+        <p style="font-size:18px;margin:6px 0 4px">途中だった読書会があります。</p>
+        <p class="muted" style="margin:0 0 20px">${book ? escapeHtml(book.title) : ""} ／ ${wd.startPage}〜${wd.endPage}p</p>
+        <button class="primary-btn big-btn" id="resume-go">続きから再開 ▶</button>
+        <button class="ghost-btn" id="resume-discard" style="margin-top:12px;width:100%">破棄して新しく始める</button>
+      </div>`;
+    document.getElementById("resume-go").onclick = () => {
+      draft = wd;
+      if (wd.phase === "sharing" && !Store.getSoloMode()) renderShare();
+      else renderTimer();
+    };
+    document.getElementById("resume-discard").onclick = () => { Store.clearWorkingDraft(); renderHome(); };
+  }
+
   // 起動
   setupDataModal();
   document.getElementById("btn-history").onclick = renderHistory;
-  renderHome();
+  const workingDraft = Store.getWorkingDraft();
+  if (workingDraft) renderResumePrompt(workingDraft); else renderHome();
 })();

@@ -171,7 +171,11 @@
 }
 ```
 
-- localStorage キー: `asayomi.books` / `asayomi.sessions` / `asayomi.participants`
+- localStorage キー: `asayomi.books` / `asayomi.sessions` / `asayomi.participants` / `asayomi.settings` / `asayomi.draft`
+  - `asayomi.settings`: `{ pagesPerSession, restDays:[0..6], soloMode:bool }`（お休み曜日・ひとりモード等）
+  - `asayomi.draft`: 進行中セッションの一時退避（保存忘れ・タブ復帰用。サマリー確定時に破棄）
+- サマリー画面を開いた時点でセッションを自動保存（`upsertSession`。同一idを上書きするので追記編集も安全）
+- ひとりモード（`soloMode`）: 感想シェアを省略し「準備→黙読→サマリー(メモ)」で完結
 - JSON エクスポート/インポート機能を用意（バックアップ＆将来の DB 移行用）。
 - フェーズ 2 では上記をそのままテーブル/コレクションへマッピング。
 

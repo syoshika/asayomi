@@ -8,6 +8,7 @@ const Store = (() => {
     sessions: "asayomi.sessions",
     participants: "asayomi.participants",
     settings: "asayomi.settings",
+    draft: "asayomi.draft", // 進行中セッションの一時退避（保存忘れ・復帰用）
   };
 
   const DEFAULT_PAGES_PER_SESSION = 10; // 1 回で読むページ数の既定値
@@ -101,11 +102,20 @@ const Store = (() => {
     })[0];
     return latest.endPage;
   }
-  function addSession(session) {
+  // セッションを追加 or 同一idを上書き（サマリーでの自動保存・追記更新に使う）
+  function upsertSession(session) {
     const sessions = read(KEYS.sessions);
-    sessions.push(session);
+    const idx = sessions.findIndex((s) => s.id === session.id);
+    if (idx >= 0) sessions[idx] = session; else sessions.push(session);
     write(KEYS.sessions, sessions);
   }
+
+  // --- 進行中セッションの一時退避（保存忘れ・タブ復帰用） ---
+  function saveWorkingDraft(d) { localStorage.setItem(KEYS.draft, JSON.stringify(d)); }
+  function getWorkingDraft() {
+    try { return JSON.parse(localStorage.getItem(KEYS.draft)); } catch (e) { return null; }
+  }
+  function clearWorkingDraft() { localStorage.removeItem(KEYS.draft); }
 
   // 履歴用の集計。本ごとの軌跡（開催回数・累計ページ・到達ページ）を返す。
   function getBookStats(bookId) {
@@ -178,6 +188,13 @@ const Store = (() => {
     s.restDays = arr;
     write(KEYS.settings, s);
   }
+  // ひとりモード（感想シェアを省略する完全個人利用）
+  function getSoloMode() { return !!getSettings().soloMode; }
+  function setSoloMode(on) {
+    const s = getSettings();
+    s.soloMode = !!on;
+    write(KEYS.settings, s);
+  }
 
   // --- エクスポート / インポート ---
   function exportAll() {
@@ -203,9 +220,11 @@ const Store = (() => {
     getBooks, getCurrentBook, saveBook,
     getParticipants, saveParticipants,
     pauseReadingBooks,
-    getSessions, getSessionsByBook, getLastEndPage, addSession, getStreak, getBookStats,
+    getSessions, getSessionsByBook, getLastEndPage, upsertSession, getStreak, getBookStats,
+    saveWorkingDraft, getWorkingDraft, clearWorkingDraft,
     getPagesPerSession, setPagesPerSession,
     getRestDays, setRestDays,
+    getSoloMode, setSoloMode,
     exportAll, importAll,
   };
 })();
