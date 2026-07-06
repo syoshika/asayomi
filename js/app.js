@@ -560,7 +560,7 @@
               const r = s.reactions || {};
               const rTotal = (r.empathy || 0) + (r.insight || 0) + (r.discovery || 0);
               return `
-                <li class="session-row">
+                <li class="session-row" data-id="${s.id}" data-date="${s.date}">
                   <div class="session-date">${fmtDateLabel(s.date)}</div>
                   <div class="session-main">
                     <div class="session-book">${book ? escapeHtml(book.title) : "（不明な本）"}</div>
@@ -575,7 +575,41 @@
     `;
 
     document.getElementById("back-home").onclick = renderHome;
+    // セッション行をクリックすると、その回のメモを編集できる
+    const list = document.querySelector(".session-list");
+    if (list) list.onclick = (e) => {
+      const li = e.target.closest(".session-row[data-id]");
+      if (li) renderSessionEdit(li.dataset.id);
+    };
     renderCalendar(new Date());
+  }
+
+  // ---- 画面: 記録（メモ）を編集 ----
+  function renderSessionEdit(sessionId) {
+    clearTimer();
+    const s = Store.getSessions().find((x) => x.id === sessionId);
+    if (!s) { renderHistory(); return; }
+    const book = Store.getBooks().find((b) => b.id === s.bookId);
+
+    app.innerHTML = `
+      <div class="card row-between" style="padding:18px 28px">
+        <p class="section-label" style="margin:0">記録を編集</p>
+        <button class="ghost-btn" id="back-history">← 履歴に戻る</button>
+      </div>
+      <div class="card">
+        <p class="book-title" style="font-size:20px">${book ? escapeHtml(book.title) : "（不明な本）"}</p>
+        <p class="book-meta">${fmtDateLabel(s.date)} ／ ${s.startPage}→${s.endPage}p（${Math.max(0, s.endPage - s.startPage)}p）${s.question && s.question !== "なし" ? "・" + escapeHtml(s.question) : ""}</p>
+        <p class="section-label" style="margin-top:18px">ひとことメモ</p>
+        <textarea id="edit-memo" class="memo-input" rows="4" placeholder="この回のメモ（あとから追記・修正できます）">${escapeHtml(s.memo || "")}</textarea>
+        <button class="primary-btn big-btn" id="save-memo" style="margin-top:16px">保存する ✓</button>
+      </div>`;
+
+    document.getElementById("back-history").onclick = renderHistory;
+    document.getElementById("save-memo").onclick = () => {
+      s.memo = document.getElementById("edit-memo").value;
+      Store.upsertSession(s);
+      renderHistory();
+    };
   }
 
   // 履歴カレンダー（月送り）。開催日をハイライトし、ページ数をセルに表示する。
@@ -607,7 +641,7 @@
       const held = ds in pagesByDate;
       const isToday = ds === todayStr;
       const isRest = restDays.includes(new Date(year, month, d).getDay());
-      cells += `<div class="cal-cell${isRest ? " rest" : ""}${held ? " held" : ""}${isToday ? " today" : ""}">
+      cells += `<div class="cal-cell${isRest ? " rest" : ""}${held ? " held" : ""}${isToday ? " today" : ""}"${held ? ` data-date="${ds}"` : ""}>
         <span class="cal-day">${d}</span>
         ${held ? `<span class="cal-pages">${pagesByDate[ds]}p</span>` : ""}
       </div>`;
@@ -624,6 +658,17 @@
 
     document.getElementById("cal-prev").onclick = () => renderCalendar(new Date(year, month - 1, 1));
     document.getElementById("cal-next").onclick = () => renderCalendar(new Date(year, month + 1, 1));
+
+    // 開催日をクリック → 該当セッション行へスクロールして一瞬ハイライト
+    wrap.querySelectorAll(".cal-cell.held[data-date]").forEach((cell) => {
+      cell.onclick = () => {
+        const row = document.querySelector(`.session-row[data-date="${cell.dataset.date}"]`);
+        if (!row) return;
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
+        row.classList.add("flash");
+        setTimeout(() => row.classList.remove("flash"), 1500);
+      };
+    });
   }
 
   // ---- データ管理（モーダル） ----

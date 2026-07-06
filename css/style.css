@@ -372,7 +372,7 @@ input[type="range"] {
 .cal-cell.empty { background: transparent; }
 .cal-cell.rest { background: #efece6; color: var(--muted); }
 .cal-head.rest { color: #c4bfb5; }
-.cal-cell.held { background: var(--accent); color: #fff; font-weight: 800; }
+.cal-cell.held { background: var(--accent); color: #fff; font-weight: 800; cursor: pointer; }
 .cal-cell.today { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cal-cell.held.today { outline-color: var(--ink); }
 .cal-day { line-height: 1.1; }
@@ -384,10 +384,18 @@ input[type="range"] {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 12px 4px;
+  padding: 12px 8px;
   border-top: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
 }
 .session-row:first-child { border-top: none; }
+.session-row:hover { background: var(--bg); }
+@keyframes rowflash {
+  0%, 40% { background: var(--accent-soft); }
+  100% { background: transparent; }
+}
+.session-row.flash { animation: rowflash 1.5s ease; }
 .session-date { font-weight: 800; min-width: 92px; }
 .session-main { flex: 1; min-width: 0; }
 .session-book { font-weight: 700; font-size: 16px; }
