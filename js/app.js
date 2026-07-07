@@ -584,28 +584,96 @@
     renderCalendar(new Date());
   }
 
-  // ---- 画面: 記録（メモ）を編集 ----
+  // ---- 画面: 記録（範囲・問い・メモ）を編集 ----
   function renderSessionEdit(sessionId) {
     clearTimer();
     const s = Store.getSessions().find((x) => x.id === sessionId);
     if (!s) { renderHistory(); return; }
     const book = Store.getBooks().find((b) => b.id === s.bookId);
+    // スライダー上限は本の総ページ（既存値がそれを超える場合は既存値を優先）
+    const maxPage = Math.max(book ? book.totalPages : 0, s.endPage, s.startPage, 1);
+
+    // 編集用の一時状態
+    const edit = { startPage: s.startPage, endPage: s.endPage, question: s.question || "なし" };
+    // 現在の問いがプリセットに無ければ選択肢に足す（過去データ互換）
+    const presets = QUESTION_PRESETS.slice();
+    if (edit.question && !presets.includes(edit.question)) presets.push(edit.question);
 
     app.innerHTML = `
       <div class="card row-between" style="padding:18px 28px">
         <p class="section-label" style="margin:0">記録を編集</p>
         <button class="ghost-btn" id="back-history">← 履歴に戻る</button>
       </div>
+
       <div class="card">
         <p class="book-title" style="font-size:20px">${book ? escapeHtml(book.title) : "（不明な本）"}</p>
-        <p class="book-meta">${fmtDateLabel(s.date)} ／ ${s.startPage}→${s.endPage}p（${Math.max(0, s.endPage - s.startPage)}p）${s.question && s.question !== "なし" ? "・" + escapeHtml(s.question) : ""}</p>
-        <p class="section-label" style="margin-top:18px">ひとことメモ</p>
+        <p class="book-meta">${fmtDateLabel(s.date)}${book ? ` ／ 全 ${book.totalPages}p` : ""}</p>
+      </div>
+
+      <div class="card">
+        <p class="section-label">読んだ範囲（ページ）</p>
+        <div class="range-row">
+          <span class="num" id="e-start">${edit.startPage}</span>
+          <span class="muted">〜</span>
+          <span class="num" id="e-end">${edit.endPage}</span>
+          <span class="muted">p</span>
+          <span class="muted" style="margin-left:auto" id="e-count">${Math.max(0, edit.endPage - edit.startPage)}p</span>
+        </div>
+        <p class="muted" style="margin:10px 0 2px">開始ページ</p>
+        <input type="range" id="e-start-range" min="1" max="${maxPage}" value="${edit.startPage}" />
+        <p class="muted" style="margin:12px 0 2px">終了ページ</p>
+        <input type="range" id="e-end-range" min="1" max="${maxPage}" value="${edit.endPage}" />
+      </div>
+
+      <div class="card">
+        <p class="section-label">今日の問い</p>
+        <div class="chips" id="e-question-chips">
+          ${presets.map((q) => `<button class="chip ${q === edit.question ? "selected" : ""}" data-q="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join("")}
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="section-label">ひとことメモ</p>
         <textarea id="edit-memo" class="memo-input" rows="4" placeholder="この回のメモ（あとから追記・修正できます）">${escapeHtml(s.memo || "")}</textarea>
-        <button class="primary-btn big-btn" id="save-memo" style="margin-top:16px">保存する ✓</button>
-      </div>`;
+      </div>
+
+      <button class="primary-btn big-btn" id="save-session">保存する ✓</button>
+    `;
+
+    const startRange = document.getElementById("e-start-range");
+    const endRange = document.getElementById("e-end-range");
+    function syncRange() {
+      document.getElementById("e-start").textContent = edit.startPage;
+      document.getElementById("e-end").textContent = edit.endPage;
+      document.getElementById("e-count").textContent = Math.max(0, edit.endPage - edit.startPage) + "p";
+      startRange.value = edit.startPage;
+      endRange.value = edit.endPage;
+    }
+    // 開始・終了は逆転しないよう相互に押し合う
+    startRange.oninput = () => {
+      edit.startPage = parseInt(startRange.value, 10);
+      if (edit.endPage < edit.startPage) edit.endPage = edit.startPage;
+      syncRange();
+    };
+    endRange.oninput = () => {
+      edit.endPage = parseInt(endRange.value, 10);
+      if (edit.startPage > edit.endPage) edit.startPage = edit.endPage;
+      syncRange();
+    };
+
+    document.querySelectorAll("#e-question-chips .chip").forEach((chip) => {
+      chip.onclick = () => {
+        document.querySelectorAll("#e-question-chips .chip").forEach((c) => c.classList.remove("selected"));
+        chip.classList.add("selected");
+        edit.question = chip.dataset.q;
+      };
+    });
 
     document.getElementById("back-history").onclick = renderHistory;
-    document.getElementById("save-memo").onclick = () => {
+    document.getElementById("save-session").onclick = () => {
+      s.startPage = edit.startPage;
+      s.endPage = edit.endPage;
+      s.question = edit.question;
       s.memo = document.getElementById("edit-memo").value;
       Store.upsertSession(s);
       renderHistory();
