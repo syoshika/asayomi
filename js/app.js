@@ -46,7 +46,7 @@
     if (!book) {
       app.innerHTML = `<div class="card center"><p>本が登録されていません。</p>
         <button class="primary-btn" id="add-book">本を登録する</button></div>`;
-      document.getElementById("add-book").onclick = editBook;
+      document.getElementById("add-book").onclick = registerNewBook;
       return;
     }
 
@@ -753,6 +753,12 @@
     // ひとりモードの切替（次回の読書会から反映）
     soloToggle.onchange = () => Store.setSoloMode(soloToggle.checked);
 
+    // 本を切り替える（本棚を開く）
+    document.getElementById("btn-switch-book").onclick = () => {
+      modal.classList.add("hidden");
+      renderBookShelf();
+    };
+
     // 読書会お休みの曜日チェックボックス（タップで即保存）
     function renderRestDays() {
       const wrap = document.getElementById("weekday-checks");
@@ -824,9 +830,16 @@
         book.title = title; book.author = author; book.totalPages = total;
         Store.saveBook(book);
       } else {
-        // 新しい本を登録 → 読書中だった本は自動で「中断」にし、現在の本を1冊に保つ
-        Store.pauseReadingBooks();
-        Store.saveBook({ id: "book_" + Date.now(), title, author, totalPages: total, status: "reading", startedAt: Store.today(), finishedAt: null });
+        // 既に同じタイトルの本があれば、重複登録せずその本に切り替える（続きから読める）
+        const existing = Store.getBooks().find((b) => b.title === title);
+        if (existing) {
+          alert(`「${existing.title}」は登録済みです。その本に切り替えます。`);
+          Store.setCurrentBook(existing.id);
+        } else {
+          // 新しい本を登録 → 読書中だった本は自動で「中断」にし、現在の本を1冊に保つ
+          Store.pauseReadingBooks();
+          Store.saveBook({ id: "book_" + Date.now(), title, author, totalPages: total, status: "reading", startedAt: Store.today(), finishedAt: null });
+        }
       }
       modal.classList.add("hidden");
       renderHome();
@@ -866,6 +879,73 @@
     return String(str).replace(/[&<>"']/g, (c) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[c]));
+  }
+
+  // ---- 画面: 本を切り替える（本棚） ----
+  function renderBookShelf() {
+    clearTimer();
+    const books = Store.getBooks();
+    const current = Store.getCurrentBook();
+
+    app.innerHTML = `
+      <div class="card row-between" style="padding:18px 28px">
+        <p class="section-label" style="margin:0">本を切り替える</p>
+        <button class="ghost-btn" id="shelf-back">← ホームに戻る</button>
+      </div>
+
+      <div class="card">
+        <p class="section-label">登録されている本（タップで切り替え）</p>
+        ${books.length === 0 ? `<p class="muted">まだ本がありません。下のボタンから登録してください。</p>` : books.map((b) => {
+          const st = Store.getBookStats(b.id);
+          const isCurrent = current && b.id === current.id;
+          const badge = b.status === "finished" ? `<span class="badge done">読了 🎉</span>`
+            : b.status === "paused" ? `<span class="badge paused">中断</span>`
+            : `<span class="badge">読書中</span>`;
+          return `
+            <div class="shelf-item${isCurrent ? " current" : ""}" data-id="${b.id}">
+              <div class="row-between">
+                <span class="book-track-title">${escapeHtml(b.title)} ${badge}</span>
+                <span class="muted">${st.count}回</span>
+              </div>
+              <div class="progress" style="margin-top:8px">
+                <span style="width:${pct(st.reached, b.totalPages)}%"></span>
+              </div>
+              <p class="muted" style="margin:4px 0 0;font-size:13px">${escapeHtml(b.author)} ／ ${st.reached} / ${b.totalPages}p（${pct(st.reached, b.totalPages)}%）${isCurrent ? "・いま読んでいる本" : "・続きは " + st.reached + "p から"}</p>
+            </div>`;
+        }).join("")}
+      </div>
+
+      <button class="secondary-btn big-btn" id="shelf-new">新しい本を登録 ＋</button>
+    `;
+
+    document.getElementById("shelf-back").onclick = renderHome;
+    document.getElementById("shelf-new").onclick = registerNewBook;
+    // タップした本に切り替え（他の読書中は自動で中断に）
+    app.querySelectorAll(".shelf-item[data-id]").forEach((el) => {
+      el.onclick = () => { Store.setCurrentBook(el.dataset.id); renderHome(); };
+    });
+  }
+
+  // 新しい本を登録（同名の本が既にあれば重複させず切り替える）
+  function registerNewBook() {
+    const title = prompt("新しい本のタイトル", "");
+    if (title === null) return;
+    const existing = Store.getBooks().find((b) => b.title === title.trim());
+    if (existing) {
+      alert(`「${existing.title}」は登録済みです。その本に切り替えます。`);
+      Store.setCurrentBook(existing.id);
+      renderHome();
+      return;
+    }
+    const author = prompt("著者", "") || "";
+    const total = parseInt(prompt("総ページ数", "200"), 10);
+    if (!title.trim() || !total) return;
+    Store.pauseReadingBooks();
+    Store.saveBook({
+      id: "book_" + Date.now(), title: title.trim(), author, totalPages: total,
+      status: "reading", startedAt: Store.today(), finishedAt: null,
+    });
+    renderHome();
   }
 
   // ---- 画面: 前回の続きから再開 ----

@@ -344,6 +344,17 @@ input[type="range"] {
 .badge.done { color: #fff; background: var(--ok); }
 .badge.paused { color: var(--muted); background: var(--line); }
 
+/* 本棚（本を切り替える） */
+.shelf-item {
+  padding: 14px 12px;
+  border-top: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.shelf-item:first-of-type { border-top: none; }
+.shelf-item:hover { background: var(--bg); }
+.shelf-item.current { background: var(--accent-soft); }
+
 /* 履歴: カレンダー */
 .cal-nav { margin-bottom: 12px; }
 .cal-month { font-size: 18px; font-weight: 800; }

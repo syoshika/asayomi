@@ -143,7 +143,8 @@
   "title": "GIVE & TAKE",
   "author": "アダム・グラント",
   "totalPages": 376,
-  "status": "reading",   // reading | finished | paused（新しい本に切り替えると読書中→pausedに自動移行）
+  "status": "reading",   // reading | finished | paused（本を切り替えると読書中→pausedに自動移行）
+                         // 読書中は常に1冊のみ。setCurrentBook(id) で既存の本へ戻れる（続きのページから再開）
   "startedAt": "2026-06-01",
   "finishedAt": null
 }

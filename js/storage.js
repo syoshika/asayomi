@@ -80,6 +80,21 @@ const Store = (() => {
     if (changed) write(KEYS.books, books);
   }
 
+  // 既存の本に切り替える（本棚から選び直す）。
+  // 対象を読書中にし、他の読書中は中断へ。中断・読了した本の続きから再開できる。
+  function setCurrentBook(bookId) {
+    const books = read(KEYS.books);
+    books.forEach((b) => {
+      if (b.id === bookId) {
+        b.status = "reading";
+        b.finishedAt = null; // 読了本を読み直す場合に備える
+      } else if (b.status === "reading") {
+        b.status = "paused";
+      }
+    });
+    write(KEYS.books, books);
+  }
+
   // --- 参加者 ---
   function getParticipants() { return read(KEYS.participants); }
   function saveParticipants(list) { write(KEYS.participants, list); }
@@ -219,7 +234,7 @@ const Store = (() => {
     today,
     getBooks, getCurrentBook, saveBook,
     getParticipants, saveParticipants,
-    pauseReadingBooks,
+    pauseReadingBooks, setCurrentBook,
     getSessions, getSessionsByBook, getLastEndPage, upsertSession, getStreak, getBookStats,
     saveWorkingDraft, getWorkingDraft, clearWorkingDraft,
     getPagesPerSession, setPagesPerSession,
