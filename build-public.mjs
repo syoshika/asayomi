@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(fileURLToPath(import.meta.url));
 const out = resolve(root, 'dist-public');
 // Explicit allowlist: documentation, generators and temporary files never enter a deployment.
-const files = ['index.html', '404.html', '_headers', 'css/style.css', 'js/app.js', 'js/storage.js'];
+const files = ['index.html', '404.html', '_headers', '_redirects', 'css/style.css', 'js/app.js', 'js/storage.js'];
 for (const file of files) {
   const source = join(root, file);
   if (!existsSync(source) || !statSync(source).isFile() || lstatSync(source).isSymbolicLink()) {

@@ -118,10 +118,10 @@ node build-public.mjs
 wrangler pages deploy dist-public --project-name=asayomi --branch=main
 ```
 
-公開対象は `index.html`、`404.html`、`_headers`、`css/style.css`、
-`js/app.js`、`js/storage.js` の6ファイルだけです。新しく必要なファイルを追加するときは
+公開対象は `index.html`、`404.html`、`_headers`、`_redirects`、`css/style.css`、
+`js/app.js`、`js/storage.js` の7ファイルだけです。新しく必要なファイルを追加するときは
 `build-public.mjs` の許可リストも更新してください。`dist-public/` は生成専用で、直接編集しません。
-公開後はREADME.md・SPEC.md・generate_pdf.pyが404になることと、アプリの動作を確認します。
+旧公開URL（README.md・SPEC.md・generate_pdf.py）は302で存在しないパスへ転送し、最終的に404を返します。これは旧配信キャッシュが残る場合への対策です。公開後は旧ファイルの本文が取得できないことと、アプリの動作を確認します。
 
 `_headers` はページ内スクリプトの実行・他サイトへの埋め込み・不要な端末機能を制限します。
 HTTPS固定（HSTS）は初期導入として1日間で、このホストだけに適用します。
