@@ -251,6 +251,19 @@ input[type="range"] {
 .file-label { cursor: pointer; }
 .close-btn { width: 100%; }
 
+/* 読み込み時のセキュリティ注意 */
+.import-caution {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink);
+  background: #fdf0ec;
+  border: 1px solid #f0c7bb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: -8px 0 4px;
+}
+.import-caution strong { color: var(--alert); }
+
 /* ひとりモード トグルスイッチ */
 .switch-row {
   display: flex;

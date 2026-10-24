@@ -792,6 +792,13 @@
     document.getElementById("file-import").onchange = (e) => {
       const file = e.target.files[0];
       if (!file) return;
+      // 上書き前に確認し、信頼できるファイルだけ読み込むよう注意を再掲する
+      const ok = confirm(
+        "読み込むと、今このブラウザにある読書記録や設定は上書きされます。\n\n" +
+        "自分で書き出して保管したバックアップですか？ 出所が不明なファイルや、" +
+        "第三者が編集したファイルは読み込まないでください。\n\n続けますか？"
+      );
+      if (!ok) { e.target.value = ""; return; }
       const reader = new FileReader();
       reader.onload = () => {
         try {
