@@ -106,3 +106,23 @@ graph TD
 1.  `asayomi` フォルダごと別のPCにコピー（USB、共有ドライブ等）します。
 2.  コピー先のPCで `index.html` をダブルクリック（またはブラウザにドラッグ＆ドロップ）するだけで、そのまま使用できます。
 3.  進捗データや参加者情報を引き継ぎたい場合は、元のPCで「**設定と履歴の保存**」を行い、作成されたJSONファイルを新しいPCの「**設定と履歴の読込**」から読み込ませてください。
+## 5. 公開手順（2026-10-25 更新）
+
+フォルダー全体を公開する `wrangler pages deploy .` は使いません。
+作業用の説明書・仕様書・PDF生成スクリプト・一時ファイルを誤公開しないよう、
+公開用ファイルだけを `dist-public/` にコピーし、許可リストと一致することを検査します。
+
+```sh
+node build-public.mjs
+# ローカルで表示を確認し、コミット後に所有者の公開許可を得てから実行:
+wrangler pages deploy dist-public --project-name=asayomi --branch=main
+```
+
+公開対象は `index.html`、`404.html`、`_headers`、`css/style.css`、
+`js/app.js`、`js/storage.js` の6ファイルだけです。新しく必要なファイルを追加するときは
+`build-public.mjs` の許可リストも更新してください。`dist-public/` は生成専用で、直接編集しません。
+公開後はREADME.md・SPEC.md・generate_pdf.pyが404になることと、アプリの動作を確認します。
+
+`_headers` はページ内スクリプトの実行・他サイトへの埋め込み・不要な端末機能を制限します。
+HTTPS固定（HSTS）は初期導入として1日間で、このホストだけに適用します。
+`includeSubDomains` や `preload` は指定していません。
