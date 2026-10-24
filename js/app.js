@@ -264,7 +264,7 @@
         const p = participantById(id);
         const cls = i === currentIndex ? "current" : (i < currentIndex ? "done" : "");
         const mark = i < currentIndex ? "✓" : (i === currentIndex ? "🎙" : (i + 1));
-        return `<li class="${cls}" data-i="${i}"><span class="av">${p.icon}</span>${escapeHtml(p.name)}
+        return `<li class="${cls}" data-i="${i}"><span class="av">${escapeHtml(p.icon)}</span>${escapeHtml(p.name)}
           <span class="muted" style="margin-left:auto">${mark}</span></li>`;
       }).join("");
     }
@@ -560,7 +560,7 @@
               const r = s.reactions || {};
               const rTotal = (r.empathy || 0) + (r.insight || 0) + (r.discovery || 0);
               return `
-                <li class="session-row" data-id="${s.id}" data-date="${s.date}">
+                <li class="session-row" data-id="${escapeHtml(s.id)}" data-date="${escapeHtml(s.date)}">
                   <div class="session-date">${fmtDateLabel(s.date)}</div>
                   <div class="session-main">
                     <div class="session-book">${book ? escapeHtml(book.title) : "（不明な本）"}</div>
@@ -802,7 +802,11 @@
       const reader = new FileReader();
       reader.onload = () => {
         try {
-          Store.importAll(JSON.parse(reader.result));
+          const result = Store.importAll(JSON.parse(reader.result));
+          if (!result || !result.ok) {
+            alert("読み込みに失敗しました。" + (result && result.reason ? "\n" + result.reason : ""));
+            return;
+          }
           alert("インポートしました。");
           modal.classList.add("hidden");
           renderHome();
@@ -909,7 +913,7 @@
             : b.status === "paused" ? `<span class="badge paused">中断</span>`
             : `<span class="badge">読書中</span>`;
           return `
-            <div class="shelf-item${isCurrent ? " current" : ""}" data-id="${b.id}">
+            <div class="shelf-item${isCurrent ? " current" : ""}" data-id="${escapeHtml(b.id)}">
               <div class="row-between">
                 <span class="book-track-title">${escapeHtml(b.title)} ${badge}</span>
                 <span class="muted">${st.count}回</span>

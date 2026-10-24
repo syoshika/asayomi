@@ -221,11 +221,108 @@ const Store = (() => {
       settings: getSettings(),
     };
   }
+  // --- インポートの検証・無害化（細工されたバックアップ対策） ---
+  // 文字列は型と最大長を強制、数値は整数化＋範囲クランプ、ID は安全な文字種のみ、
+  // 日付は YYYY-MM-DD のみ許可。壊れた項目は捨て、構造が不正なら保存しない。
+  function vStr(v, max) { return (typeof v === "string" ? v : "").slice(0, max); }
+  function vInt(v, min, max, def) {
+    const n = Math.round(Number(v));
+    if (!Number.isFinite(n)) return def;
+    return Math.min(max, Math.max(min, n));
+  }
+  function vId(v, prefix) {
+    const cleaned = String(v == null ? "" : v).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+    return cleaned || (prefix + "_" + Math.random().toString(36).slice(2, 10));
+  }
+  function vDate(v) {
+    if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+    const d = parseLocalDate(v);
+    // 実在する日付のみ許可（2026-13-99 や 2026-02-30 を弾く）
+    return (!isNaN(d.getTime()) && toYMD(d) === v) ? v : null;
+  }
+  function vBook(b) {
+    if (!b || typeof b !== "object") return null;
+    const status = ["reading", "paused", "finished"].includes(b.status) ? b.status : "paused";
+    return {
+      id: vId(b.id, "book"),
+      title: vStr(b.title, 300) || "（無題）",
+      author: vStr(b.author, 200),
+      totalPages: vInt(b.totalPages, 1, 100000, 200),
+      status,
+      startedAt: vDate(b.startedAt),
+      finishedAt: vDate(b.finishedAt),
+    };
+  }
+  function vSession(s) {
+    if (!s || typeof s !== "object") return null;
+    const date = vDate(s.date);
+    if (!date) return null; // 日付が不正な記録は取り込まない
+    const r = (s.reactions && typeof s.reactions === "object") ? s.reactions : {};
+    return {
+      id: vId(s.id, "session"),
+      bookId: vId(s.bookId, "book"),
+      date,
+      startPage: vInt(s.startPage, 0, 100000, 0),
+      endPage: vInt(s.endPage, 0, 100000, 0),
+      question: vStr(s.question, 200) || "なし",
+      participants: Array.isArray(s.participants) ? s.participants.slice(0, 200).map((p) => vId(p, "p")) : [],
+      reactions: {
+        empathy: vInt(r.empathy, 0, 1000000, 0),
+        insight: vInt(r.insight, 0, 1000000, 0),
+        discovery: vInt(r.discovery, 0, 1000000, 0),
+      },
+      nextSteps: Array.isArray(s.nextSteps) ? s.nextSteps.slice(0, 50).map((x) => ({
+        step: vStr(x && x.step, 20), count: vInt(x && x.count, 0, 1000000, 0),
+      })) : [],
+      memo: vStr(s.memo, 2000),
+      durationMin: vInt(s.durationMin, 1, 600, 15),
+    };
+  }
+  function vParticipant(p) {
+    if (!p || typeof p !== "object") return null;
+    return {
+      id: vId(p.id, "p"),
+      name: vStr(p.name, 100) || "参加者",
+      icon: vStr(p.icon, 8) || "📘", // 短い文字列のみ。表示側でもエスケープする
+      joinedAt: vDate(p.joinedAt),
+    };
+  }
+  function vSettings(s) {
+    if (!s || typeof s !== "object") return {};
+    return {
+      pagesPerSession: vInt(s.pagesPerSession, 1, 100000, DEFAULT_PAGES_PER_SESSION),
+      restDays: Array.isArray(s.restDays)
+        ? [...new Set(s.restDays.map((d) => vInt(d, 0, 6, -1)).filter((d) => d >= 0))]
+        : [0, 6],
+      soloMode: !!s.soloMode,
+    };
+  }
+
   function importAll(data) {
-    if (data.books) write(KEYS.books, data.books);
-    if (data.sessions) write(KEYS.sessions, data.sessions);
-    if (data.participants) write(KEYS.participants, data.participants);
-    if (data.settings) write(KEYS.settings, data.settings);
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return { ok: false, reason: "ファイルの形式が正しくありません。" };
+    }
+    // 配列であるべき項目が配列でなければ、壊れた/細工されたファイルとして拒否
+    for (const k of ["books", "sessions", "participants"]) {
+      if (data[k] != null && !Array.isArray(data[k])) {
+        return { ok: false, reason: "ファイルの形式が正しくありません。" };
+      }
+    }
+    const counts = {};
+    if (data.books != null) {
+      const v = data.books.map(vBook).filter(Boolean);
+      write(KEYS.books, v); counts.books = v.length;
+    }
+    if (data.sessions != null) {
+      const v = data.sessions.map(vSession).filter(Boolean);
+      write(KEYS.sessions, v); counts.sessions = v.length;
+    }
+    if (data.participants != null) {
+      const v = data.participants.map(vParticipant).filter(Boolean);
+      write(KEYS.participants, v); counts.participants = v.length;
+    }
+    if (data.settings != null) write(KEYS.settings, vSettings(data.settings));
+    return { ok: true, counts };
   }
 
   seedIfEmpty();
